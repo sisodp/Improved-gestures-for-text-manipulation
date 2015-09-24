@@ -1,0 +1,118 @@
+
+BODY{
+    background-color:#000000;
+    color:white;
+    font-size:20;
+  }
+  H1{
+    color:orange;
+    text-align:center;
+    font-family:"Times New Roman";
+  }
+  UL.A{
+    list-style-type:circle;
+  }
+ UL.B{
+    list-style-type:decimal;
+  }
+
+  IMG{
+    postion:absolute;
+    left:200;
+  }
+  .BIG{
+    background-color:black;
+    color:white;
+    font-family:"Times New Roman";
+    width:700px;
+    height:200px;
+    font-size:20;
+    padding:2px;
+    resize:none;
+    overflow:auto;
+    border-spacing:0px 5px;
+    text-indent:0px;
+    text-align:left;
+    border-color:white;
+    outline:white;
+    border:2px solid;
+    contenteditable="true";
+
+  }
+  .PAGE{
+    background-color:black;
+    color:white;
+    font-family:"Times New Roman";
+    width:600px;
+    height:500px;
+    font-size:20;
+    padding:2px;
+    resize:none;
+    overflow:auto;
+    border-spacing:0px 5px;
+    text-indent:0px;
+    text-align:left;
+    border-color:black;
+    outline:none;
+    contenteditable="true";
+
+  }
+  .SMALL{
+    background-color:black;
+    color:white;
+    font-family:"Times New Roman";
+    width:350px;
+    height:100px;
+    font-size:20;
+    padding:2px;
+    resize:none;
+    overflow:hidden;
+    border-spacing:0px 5px;
+    text-indent:0px;
+    text-align:left;
+    border-color:black;
+    outline:none;
+    border-color:black;
+    contenteditable="true";
+    border:2px solid;
+  }
+  #CopyPasteHeadings{
+    font-style:italic;
+    color:white;
+  }
+  .tb1{
+    width:300px;
+    height:40px;
+    font-size:20;
+    font-family:"Times New Roman";
+    background-color:#AAAAAA;
+    
+  }
+  button.start{
+    width:50px;
+    height:50px;
+    padding:10px;
+    border:1px solid #DDD;		
+    text-align:center;
+    background:url('pictures/startf1.jpg');
+    background-size:50px 50px;
+    postion:absolute;
+    left:200;
+    display: inline;
+  }
+  button.stop{
+    width:50px;
+    height:50px;
+    padding:10px;
+    border:1px solid #DDD;		
+    text-align:center;
+    background:url('pictures/stopf1.jpg');
+    background-size:50px 50px;
+    postion:absolute;
+    left:200;
+    display: inline;
+  }
+ 
+
+  
+

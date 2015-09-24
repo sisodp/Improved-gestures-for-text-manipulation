@@ -1,0 +1,708 @@
+
+
+<HTML>
+<meta name = "viewport" content = "user-scalable = no">
+<HEAD>
+  <TITLE> Hello World </TITLE>
+  <link rel="stylesheet" type="text/css" href="UserStudyStyle.css"/>
+  <SCRIPT type="text/javascript" src = "clientAJAX.js"></script>
+  <SCRIPT type="text/javascript">
+  function clearLog() {
+    var log = document.getElementById('log');
+    log.innerHTML = '';
+  }
+  function logln(str) {
+//    var log = document.getElementById('log');
+//    log.innerHTML += str + '<br>';
+  }
+  function PrintEvent(event, type) {
+      for (var i = 0; i < event.touches.length; ++i) {
+        var touch = event.touches[i];
+        logln('\tTouch ID: ' + touch.identifier + ' X: ' + touch.clientX + ' Y: ' + touch.clientY + 'eventType: ' + type);
+      }
+    for (var i = 0; i < event.changedTouches.length; ++i) {
+      var touch = event.changedTouches[i];
+      logln('\tChangedTouch ID: ' + touch.identifier + ' X: ' + touch.clientX + ' Y: ' + touch.clientY + 'eventType: ' + type);
+    }
+    logln('');
+  }
+
+  // Colors
+  var CANVAS_BACKGROUND_COLOR = "rgba(0, 0, 0, 1)";
+  var CANVAS_TEXT_COLOR = "rgba(255, 255, 255, 1)";
+  var MAGNIFIER_BACKGROUNG_COLOR = "rgba(0, 0, 0, 1)";
+  var SCROLLBAR_LINE_COLOR = "rgba(255, 255, 255, 0.2)";
+  var SCROLLBAR_BAR_COLOR = "rgba(255, 255, 255, 0.5)";
+  var CURSOR_COLOR = "rgba(255, 255, 255, 1)";
+  var CURSOR_SET_COLOR = "rgba(255, 255, 0, 1)";
+  var SELECTION_COLOR = "rgba(0, 0, 255, 1)";
+  var MESSAGE_WIDGET_COLOR = "rgba(255, 255, 255, 0.5)";
+  var MESSAGE_WIDGET_TEXT_COLOR = "rgba(0, 0, 0, 1)";
+
+  var text = "Please select and then copy" +  String.fromCharCode(10122)+String.fromCharCode(9654)+" me "+ String.fromCharCode(9664)+ String.fromCharCode(10122)+"\n Paste me here" + String.fromCharCode(10122)+String.fromCharCode(9654)+ " "+ String.fromCharCode(9664)+String.fromCharCode(10122)+ "\n \n  Please select "+String.fromCharCode(10123)+ String.fromCharCode(9654)+" metoo "+ String.fromCharCode(9664)+String.fromCharCode(10123)+ "and then copy\n Paste "+ String.fromCharCode(10123)+String.fromCharCode(9654)+ " " + String.fromCharCode(9664)+String.fromCharCode(10123)+" the text at the cursor location.";
+  //text = text + text + text + text + text + text + text + text + "EOL";
+  var copiedText,stringToBeCopied;
+  var lines = new Array();
+  var numLines = 0;
+  var selectionSet = false;
+  var firstSelectionPosX, firstSelectionPosY;
+  var secondSelectionPosX, secondSelectionPosY;
+  var CANVAS_WIDTH = 400;
+  var CANVAS_HEIGHT = 300;
+  var LINE_HEIGHT = 15;
+  var CANVAS_INSET = 5;
+  var MAGNIFIER_WIDTH = 50;
+  var MAGNIFIER_HEIGHT = 30;
+  var MAGNIFIER_INSET = 5;
+  var MAGNIFIER_SCALE = 1.5;
+  var moveX;
+  var moveY;
+
+  GRStateEnum = {
+    NO_STATE : 0,
+    PENDING_TAP : 1,
+    STILL_PENDING : 2,
+    DOUBLE_TAP : 3,
+    DOUBLE_TAP_OR_NEW_GESTURE : 4,
+    NEW_GESTURE : 5,
+    PENDING_TWO_FINGER_TAP : 6,
+    SCROLL_STATE : 7,
+    FLICK_STATE : 8,
+  }
+
+  CanvasStateEnum = {
+    NO_STATE : 0,
+    CURSOR_SET : 1,
+    SELECTED : 2,
+  }
+
+  var grState = GRStateEnum.NO_STATE;
+  var canvasState = CanvasStateEnum.NO_STATE;
+
+  function switchGRState(newState) {
+    logln('switching grState from ' + grState + ' to ' + newState);
+    logln('');
+    grState = newState;
+  }
+
+  function switchCanvasState(newState) {
+    logln('switching canvasState from ' + canvasState + ' to ' + newState);
+    logln('');
+    canvasState = newState;
+  }
+
+  EventType = {
+    TOUCH_START : 0,
+    TOUCH_MOVE : 1,
+    TOUCH_END : 2,
+
+    NEW_GESTURE_BEGIN : 3,
+    NEW_GESTURE_UPDATE : 4,
+    NEW_GESTURE_END : 5,
+
+    GESTURE_TAP : 6,
+    GESTURE_TWO_FINGER_TAP : 7,
+    GESTURE_TWO_FINGER_DOUBLE_TAP : 8,
+    GESTURE_SCROLL : 9,
+    GESTURE_FLICK : 10,
+  
+  }
+  var startTimeFirst, endTimeFirst, startTimeSecond, endTimeSecond, timerOnClick, timerOnDoubleTap, timerOnTwoFingerTap, lastTwoFingerTapTime = 0;
+  var touch, touchCoordinatesXFirst, touchCoordinatesYFirst, touchCoordinatesXSecond, touchCoordinatesYSecond;
+  var firstSelectionX, firstSelectionY, secondSelectionX, secondSelectionY, xPosition, yPosition, textPosition = 0, textPositionStart = 0, textPositionStop = 0;
+  var trueLength = new Array();
+  var stringToBeCopied;
+  var devicePixelRatio;
+  var canvasTranslateX = 0;
+  var canvasTranslateY = 0;
+  var cursorDrawn = false;
+  var shouldDrawScrollbar = false;
+  var scrollbarTimer;
+  var shouldDrawMessageWidget = false;
+  var messageText = "";
+  var messageWidgetTimer;
+  function ProcessTouchEvent(event, type) {
+    PrintEvent(event, type);
+    var touch = event.touches[0];
+
+    if (type == EventType.TOUCH_START && grState == GRStateEnum.NO_STATE && event.touches.length == 1) {
+      touchCoordinatesXFirst = touch.clientX;
+      touchCoordinatesYFirst = touch.clientY;
+      switchGRState(GRStateEnum.PENDING_TAP);
+      startTimeFirst = new Date().getTime();
+      clearTimeout(timerOnTwoFingerTap);
+    }
+   
+   /* else if (type == EventType.TOUCH_MOVE && grState == GRStateEnum.PENDING_TAP) {
+      switchGRState(GRStateEnum.NO_STATE);
+    }
+   */
+    else if (type == EventType.TOUCH_MOVE && (grState == GRStateEnum.PENDING_TAP || grState == GRStateEnum.PENDING_TWO_FINGER_TAP)) {
+      moveX = touch.clientX;
+      moveY = touch.clientY;
+      if ((Math.abs(touch.clientX - touchCoordinatesXFirst)) > 50 || (Math.abs(touch.clientY - touchCoordinatesYFirst)) > 50){
+      
+	switchGRState(GRStateEnum.SCROLL_STATE);
+      }
+      else if (((Math.abs(touch.clientX - touchCoordinatesXFirst)) >= 15 || (Math.abs(touch.clientY - touchCoordinatesYFirst)) >= 15) && ((Math.abs(touch.clientX - touchCoordinatesXFirst)) <= 50 || (Math.abs             (touch.clientY -     touchCoordinatesYFirst)) <= 50)){
+      	switchGRState(GRStateEnum.FLICK_STATE);
+      }
+    }
+
+    else if (type == EventType.TOUCH_MOVE && ((grState == GRStateEnum.SCROLL_STATE) || (grState == GRStateEnum.FLICK_STATE))) {
+      if (grState == GRStateEnum.SCROLL_STATE){
+        ProcessGestureEvent(EventType.GESTURE_SCROLL, touch.clientX - moveX, touch.clientY - moveY);
+        moveX = touch.clientX;
+        moveY = touch.clientY;
+      }
+      else {
+        //ProcessGestureEvent(EventType.GESTURE_FILCK, touch.clientX - moveX, touch.clientY - moveY);
+        moveX = touch.clientX;
+        moveY = touch.clientY;
+      }
+    }
+
+    else if (type == EventType.TOUCH_END && (grState == GRStateEnum.SCROLL_STATE || grState == GRStateEnum.FLICK_STATE ) && event.touches.length == 0) {
+        if (grState == GRStateEnum.FLICK_STATE){
+	  ProcessGestureEvent(EventType.GESTURE_FILCK, moveX, moveY);
+        }      
+	switchGRState(GRStateEnum.NO_STATE);
+    }
+        
+    else if (type == EventType.TOUCH_END && grState == GRStateEnum.PENDING_TAP) {
+      endTimeFirst = new Date().getTime();
+      var diff = endTimeFirst - startTimeFirst;
+      if (diff > 2000){
+	switchGRState(GRStateEnum.NO_STATE);
+      } else {
+	switchGRState(GRStateEnum.STILL_PENDING);
+   	timerOnClick = setTimeout(function(){ProcessGestureEvent(EventType.GESTURE_TAP, 0, 0); switchGRState(GRStateEnum.NO_STATE);}, 500);
+      }
+    }
+
+    else if (type == EventType.TOUCH_START && grState == GRStateEnum.STILL_PENDING) {
+      startTimeSecond = new Date().getTime();
+      touchCoordinatesXSecond = touch.clientX;
+      touchCoordinatesYSecond = touch.clientY;
+      if ((startTimeSecond - endTimeFirst) < 500) {
+        touchCoordinatesXSecond = touch.clientX;
+        touchCoordinatesYSecond = touch.clientY;
+	diffX = Math.abs(touchCoordinatesXSecond - touchCoordinatesXFirst);
+        diffY = Math.abs(touchCoordinatesYSecond - touchCoordinatesYFirst); 
+      	if ((diffX < 16) && (diffY < 16)) {
+	  switchGRState(GRStateEnum.DOUBLE_TAP_OR_NEW_GESTURE);
+	  clearTimeout(timerOnClick); 	
+	  timerOnDoubleTap = setTimeout(function() {
+              switchGRState(GRStateEnum.NEW_GESTURE);
+              ProcessGestureEvent(EventType.NEW_GESTURE_BEGIN, touch.clientX, touch.clientY);
+          }, 200);
+	} else {
+	  switchGRState(GRStateEnum.NO_STATE);
+	}
+      } else if((startTimeSecond - endTimeFirst) < 1000) {
+	switchGRState(GRStateEnum.NO_STATE);
+	clearTimeout(timerOnClick);
+      }      
+    }
+
+    else if (type == EventType.TOUCH_END && grState == GRStateEnum.DOUBLE_TAP_OR_NEW_GESTURE) {
+      endTimeSecond = new Date().getTime();
+      if ((endTimeSecond - startTimeSecond) < 200) {
+        switchGRState(GRStateEnum.DOUBLE_TAP);
+	clearTimeout(timerOnDoubleTap); 
+        //alert("Double Tap");
+        switchGRState(GRStateEnum.NO_STATE);
+      }
+    }
+ 
+    else if (type == EventType.TOUCH_MOVE && grState == GRStateEnum.DOUBLE_TAP_OR_NEW_GESTURE) {
+      switchGRState(GRStateEnum.NEW_GESTURE);
+      ProcessGestureEvent(EventType.NEW_GESTURE_BEGIN, touch.clientX, touch.clientY);
+    }
+
+    else if (type == EventType.TOUCH_MOVE && grState == GRStateEnum.NEW_GESTURE) {
+      ProcessGestureEvent(EventType.NEW_GESTURE_UPDATE, touch.clientX, touch.clientY);
+    }
+
+    else if (type == EventType.TOUCH_END && grState == GRStateEnum.NEW_GESTURE) {
+      switchGRState(GRStateEnum.NO_STATE);
+      ProcessGestureEvent(EventType.NEW_GESTURE_END, 0, 0);
+    }
+
+    // Once the text has been selected, a two finger tap copies the text
+    else if (type == EventType.TOUCH_START && (grState == GRStateEnum.PENDING_TAP || grState == GRStateEnum.NO_STATE) && event.touches.length > 1){
+      	switchGRState(GRStateEnum.PENDING_TWO_FINGER_TAP);
+    }
+
+    else if (type == EventType.TOUCH_END && grState == GRStateEnum.PENDING_TWO_FINGER_TAP) {
+      switchGRState(GRStateEnum.NO_STATE);
+      twoFingerTapTime = new Date().getTime();
+     // if (twoFingerTapTime - lastTwoFingerTapTime < 500) {
+      if (lastTwoFingerTapTime != 0 && ( twoFingerTapTime - lastTwoFingerTapTime ) < 500){
+        //clearTimeout(timerOnTwoFingerTap);
+        ProcessGestureEvent(EventType.GESTURE_TWO_FINGER_DOUBLE_TAP, 0, 0);
+        lastTwoFingerTapTime = 0;
+      } else {
+        lastTwoFingerTapTime = twoFingerTapTime;
+        timerOnTwoFingerTap = setTimeout(function() {
+             ProcessGestureEvent(EventType.GESTURE_TWO_FINGER_TAP, 0, 0);
+        }, 500);
+      }
+    }
+    event.preventDefault();
+  }
+
+  function ProcessGestureEvent(type, x, y) {
+    var canvas = document.getElementById("mainCanvas");
+    if (window.devicePixelRatio && type != EventType.GESTURE_SCROLL) {
+      x = (x - canvas.offsetLeft) / devicePixelRatio + canvas.offsetLeft;
+      y = (y - canvas.offsetTop) / devicePixelRatio + canvas.offsetTop;
+      x -= canvasTranslateX;
+      y -= canvasTranslateY;
+    }
+    logln('PGE ' + type + ' ' + x + ' ' + y);
+
+    if (type == EventType.GESTURE_TAP) {
+      if (canvasState != CanvasStateEnum.NO_STATE) {
+        selectionSet = false;
+      } 
+      switchCanvasState(CanvasStateEnum.NO_STATE);
+    }
+
+    // We have something selected already and receive new gesture again. We must reset and allow user to choose a new selection.
+    if (type == EventType.NEW_GESTURE_BEGIN && canvasState == CanvasStateEnum.SELECTED) {
+      selectionSet = false;
+      switchCanvasState(CanvasStateEnum.NO_STATE);
+    }
+    // A single word is selected if NEW_GESTURE_BEGIN is detected
+    if (type == EventType.NEW_GESTURE_BEGIN && canvasState == CanvasStateEnum.NO_STATE) {
+      SelectWord(x,y);
+    }
+    if (type == EventType.NEW_GESTURE_UPDATE) {
+      selectionSet = false;
+    }
+    if (type == EventType.NEW_GESTURE_BEGIN || type == EventType.NEW_GESTURE_UPDATE) {
+      cursorDrawn = true;
+    }
+
+    if (type == EventType.NEW_GESTURE_END) {
+      cursorDrawn = false;
+      if (canvasState == CanvasStateEnum.NO_STATE) {
+        if (selectionSet) {
+          switchCanvasState(CanvasStateEnum.SELECTED);
+        } else {
+          //logln('first' + cursorPosX + ' ' + cursorPosY);
+          firstSelectionPosX = cursorPosX;
+          firstSelectionPosY = cursorPosY;
+          firstSelectionX = xPosition;
+          firstSelectionY = yPosition;
+          textPositionStart = textPosition;   	
+          switchCanvasState(CanvasStateEnum.CURSOR_SET);
+        }
+      } else if (canvasState == CanvasStateEnum.CURSOR_SET) {
+        //logln('second' + cursorPosX + ' ' + cursorPosY);
+        secondSelectionPosX = cursorPosX;
+        secondSelectionPosY = cursorPosY;
+        secondSelectionX = xPosition;
+        secondSelectionY = yPosition;
+        textPositionStop = textPosition;
+        selectionSet = true;
+        switchCanvasState(CanvasStateEnum.SELECTED); // To indicate that the text has been selected and further operations can be done
+      }
+    }
+    if (type == EventType.GESTURE_TWO_FINGER_TAP && canvasState == CanvasStateEnum.SELECTED) {
+      CopyText();
+      selectionSet = false;
+      shouldDrawMessageWidget = true;
+      messageText = "Text Copied";
+      switchCanvasState(CanvasStateEnum.NO_STATE);
+    }
+    if (type == EventType.GESTURE_TWO_FINGER_DOUBLE_TAP && (canvasState == CanvasStateEnum.CURSOR_SET || canvasState == CanvasStateEnum.SELECTED)) {
+      PasteText();
+      selectionSet = false;
+      shouldDrawMessageWidget = true;
+      messageText = "Text Pasted";
+      switchCanvasState(CanvasStateEnum.NO_STATE);
+    }
+    if (type == EventType.GESTURE_SCROLL) {
+      canvasTranslateX = 0;  // We prevent horizontal scrolling.
+      var oldTranslateY = canvasTranslateY;
+      canvasTranslateY += (y / devicePixelRatio);
+      if (canvasTranslateY > 0)
+        canvasTranslateY = 0;
+      if (canvasTranslateY + LINE_HEIGHT * (numLines + 1) < CANVAS_HEIGHT)
+        canvasTranslateY = oldTranslateY;
+      shouldDrawScrollbar = true;
+    }
+
+    if (type == EventType.GESTURE_FLICK) {
+      moveHorizontal = firstSelectionPosX - x;
+      moveVertical = firstSelectionPosY - y;
+      if (moveHorizontal > 0) {
+        firstSelectionPosX -= 20;
+      }
+      else {
+        firstSelectionPosX += 20;
+      }
+      if (moveVertical > 0) {
+        firstSelectionPosY -= lineHeight;
+      }
+      else {
+        firstSelectionPosY += lineHeight;
+      }
+    }
+    RedrawMainCanvas(x, y);
+  }
+
+  function CopyText(){
+    logln(text);
+    var textPosBegin = Math.min(textPositionStart, textPositionStop);
+    var textPosEnd = Math.max(textPositionStart, textPositionStop);
+    stringToBeCopied = text.substr(textPosBegin, textPosEnd - textPosBegin);
+    logln(stringToBeCopied);
+    logln("Above is tempLine\n");
+  }
+
+
+  function PasteText(){
+    logln('Hi I am paste operation');
+    var textPosBegin;
+    var textPosEnd;
+    if (selectionSet) {
+      textPosBegin = Math.min(textPositionStart, textPositionStop);
+      textPosEnd = Math.max(textPositionStart, textPositionStop);
+    } else {
+      textPosBegin = textPositionStart;
+      textPosEnd = textPositionStart;
+    }
+    text = text.substr(0, textPosBegin) + stringToBeCopied + text.substr(textPosEnd, text.length - textPosEnd);
+  }
+
+  function wrapText(context, text, x, y, maxWidth, lineHeight) {
+    var diffLines = text.split("\n");
+    numLines = 0;
+    context.fillStyle = CANVAS_TEXT_COLOR;
+    for (var i = 0; i < diffLines.length; i++, y += lineHeight) {
+      var words = diffLines[i].split(" ");
+      var line = "";
+      for(var n = 0; n < words.length; n++) {
+        var testLine = line + words[n] + ((n < words.length - 1)? " " : "");
+        var metrics = context.measureText(testLine);
+        var testWidth = metrics.width;
+        if(testWidth > maxWidth) {
+          context.fillText(line, x, y);
+          trueLength[numLines] = line.length;
+          lines[numLines++] = line;
+          line = words[n] + " ";
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      context.fillText(line, x, y);
+      trueLength[numLines] = (i < diffLines.length - 1)? line.length + 1 : line.length;
+      lines[numLines++] = line;
+    }
+  }
+
+  function HideMagnifier() {
+    var magnifier = document.getElementById("magnifier");
+    magnifier.hidden = true;    
+  }
+
+  function SelectWord(x,y) {
+    var canvas = document.getElementById("mainCanvas");
+    var thisLine, startPointY;
+    x = x - canvas.offsetLeft;
+    y = y - canvas.offsetTop;
+    var ctx = canvas.getContext("2d");
+    if (y >= CANVAS_INSET + numLines * LINE_HEIGHT)
+      return;
+
+    var lineNum = 0;
+    for (var i = 0; i < numLines; i++) {
+      if (y < (CANVAS_INSET + (i + 1) * LINE_HEIGHT)) {
+        lineNum = i;
+        break;
+      }
+    }
+
+    startPointY = CANVAS_INSET + lineNum * LINE_HEIGHT + 1;
+    var line = lines[lineNum];
+    var column = line.length - 1;
+    for (var i = 0; i < line.length; i++) {
+      var testStr = line.substr(0, i + 1);
+      var metrics = ctx.measureText(testStr);
+      if (x < metrics.width + CANVAS_INSET) {
+        column = i; 
+        break;
+      }
+    }
+
+    // First non space character after the point of contact
+    var firstNonSpace = -1;
+    for (var i = column; i < line.length; i++) {
+      if (line[i] != ' ' && line[i] != '\t') {
+        firstNonSpace = i;
+        break;
+      }
+    }
+
+    // To determine the character postion of end of word and beginning of word
+    var wordBeginning = 0, wordEnd = line.length;
+    for (var i = firstNonSpace; i < line.length; i++){
+      if (line[i] == ' ' || line[i] == '\t') {
+	wordEnd = i;
+        break;
+      }
+    }
+    for (var j = firstNonSpace;  j >= 0; j--){
+      if (line[j] == ' ' || line[j] == '\t') {
+	wordBeginning = j + 1;
+	break;
+      }
+    }
+    textPositionStart = 0;
+    textPositionStop = 0;
+    for (var i = 0; i < lineNum ; i++){
+      textPositionStart = textPositionStart + trueLength[i];
+      textPositionStop = textPositionStop + trueLength[i];
+    }
+    textPositionStart = textPositionStart + wordBeginning;
+    textPositionStop = textPositionStop + wordEnd;
+
+    // To determine the pixel position for the end and beginning of the selected word
+    var testStrBeginning = line.substr(0, wordBeginning);
+    var testStrEnding = line.substr(0, wordEnd);
+    var metricsBeginning = ctx.measureText(testStrBeginning);
+    var metricsEnding = ctx.measureText(testStrEnding);
+    pixelBeginPosition = metricsBeginning.width + CANVAS_INSET;
+    pixelEndPosition = metricsEnding.width + CANVAS_INSET;
+    firstSelectionPosX = pixelBeginPosition;
+    firstSelectionPosY = startPointY;
+    secondSelectionPosX = pixelEndPosition;
+    secondSelectionPosY = startPointY;
+    selectionSet = true;
+
+  }
+
+  function drawLine(ctx, x, y, w, h) {
+    ctx.beginPath()
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + w, y + h);
+    ctx.stroke();
+  }
+
+  function RedrawMainCanvas(x, y) {
+//    console.log('translate: ' + canvasTranslateY);
+    var canvas = document.getElementById("mainCanvas");
+    var ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(canvasTranslateX, canvasTranslateY);
+    if (selectionSet) {
+      ctx.fillStyle = SELECTION_COLOR
+      if (firstSelectionPosY < secondSelectionPosY) {
+        ctx.fillRect(firstSelectionPosX, firstSelectionPosY, CANVAS_WIDTH - 2 * CANVAS_INSET - firstSelectionPosX, LINE_HEIGHT);
+        for (var i = firstSelectionPosY + LINE_HEIGHT; i < secondSelectionPosY; i += LINE_HEIGHT) {
+          ctx.fillRect(CANVAS_INSET, i, CANVAS_WIDTH - 2 * CANVAS_INSET, LINE_HEIGHT);
+        }
+        ctx.fillRect(CANVAS_INSET, secondSelectionPosY, secondSelectionPosX - CANVAS_INSET, LINE_HEIGHT);
+      } else if (firstSelectionPosY > secondSelectionPosY) {
+        ctx.fillRect(secondSelectionPosX, secondSelectionPosY, CANVAS_WIDTH - 2 * CANVAS_INSET - secondSelectionPosX, LINE_HEIGHT);
+        for (var i = secondSelectionPosY + LINE_HEIGHT; i < firstSelectionPosY; i += LINE_HEIGHT) {
+          ctx.fillRect(CANVAS_INSET, i, CANVAS_WIDTH - 2 * CANVAS_INSET, LINE_HEIGHT);
+        }
+        ctx.fillRect(CANVAS_INSET, firstSelectionPosY, firstSelectionPosX - CANVAS_INSET, LINE_HEIGHT);
+      } else {
+        var minX = Math.min(firstSelectionPosX, secondSelectionPosX);
+        var maxX = Math.max(firstSelectionPosX, secondSelectionPosX);
+        ctx.fillRect(minX, firstSelectionPosY, maxX - minX, LINE_HEIGHT);
+      }
+    }
+    wrapText(ctx, text, CANVAS_INSET, CANVAS_INSET + LINE_HEIGHT, CANVAS_WIDTH - 2 * CANVAS_INSET, LINE_HEIGHT);
+    if (canvasState == CanvasStateEnum.CURSOR_SET) {
+      ctx.strokeStyle = CURSOR_SET_COLOR;
+      drawLine(ctx, firstSelectionPosX, firstSelectionPosY, 0, LINE_HEIGHT);
+    }
+
+    if (cursorDrawn)
+      DrawCursor(x, y);
+    else
+      HideMagnifier();
+
+    ctx.restore();
+    DrawScrollbar();
+    DrawMessageWidget();
+  }
+
+  var lastCursorPosX = -1, lastCursorPosY = -1;
+  function DrawCursor(x, y) {
+    var canvas = document.getElementById("mainCanvas");
+    x = x - canvas.offsetLeft;
+    y = y - canvas.offsetTop;     
+    var ctx = canvas.getContext("2d");
+    if (y >= CANVAS_INSET + numLines * LINE_HEIGHT)
+      return;
+
+    var lineNum = 0;
+    for (var i = 0; i < numLines; i++) {
+      if (y < (CANVAS_INSET + (i + 1) * LINE_HEIGHT)) {
+        lineNum = i;
+        break;
+      }
+    }
+    logln('Linenum'+lineNum + "    ");
+    var line = lines[lineNum];
+    var column = line.length - 1;
+    for (var i = 0; i < line.length; i++) {
+      var testStr = line.substr(0, i + 1);
+      var metrics = ctx.measureText(testStr);
+      if (x < metrics.width + CANVAS_INSET) {
+        column = i;
+        break;
+      }
+    }
+    logln('column'+column + "    ");
+    
+    xPosition = column;
+    yPosition = lineNum;
+    textPosition = 0;
+    for (var i = 0; i < lineNum ; i++){
+      textPosition = textPosition + trueLength[i];
+    }
+    logln('initial textPosition'+textPosition + "    ");
+    textPosition = textPosition + column + 1;
+    logln('second textPosition'+textPosition + "    ");
+    
+    var metrics = ctx.measureText(line.substr(0, column + 1));
+    cursorPosX = metrics.width + CANVAS_INSET;
+    cursorPosY = CANVAS_INSET + lineNum * LINE_HEIGHT + 1;
+    ctx.strokeStyle = CURSOR_COLOR;
+    drawLine(ctx, cursorPosX, cursorPosY, 0, LINE_HEIGHT);
+    var magnifier = document.getElementById("magnifier");
+    magnifier.hidden = false;
+    if (lastCursorPosX == cursorPosX && lastCursorPosY == cursorPosY) {
+      return;
+    }
+    lastCursorPosX = cursorPosX; lastCursorPosY = cursorPosY;
+    var imageData = ctx.getImageData((cursorPosX - MAGNIFIER_WIDTH / 2 + canvasTranslateX) * devicePixelRatio, (cursorPosY - MAGNIFIER_HEIGHT / 2 + canvasTranslateY) * devicePixelRatio, MAGNIFIER_WIDTH * devicePixelRatio, MAGNIFIER_HEIGHT * devicePixelRatio);
+    magnifier.height = (MAGNIFIER_HEIGHT + 2 * MAGNIFIER_INSET) * MAGNIFIER_SCALE * devicePixelRatio;
+    magnifier.width = (MAGNIFIER_WIDTH + 2 * MAGNIFIER_INSET) * MAGNIFIER_SCALE * devicePixelRatio;
+    magnifier.style.top = (cursorPosY + canvasTranslateY) * devicePixelRatio + canvas.offsetTop - magnifier.height - LINE_HEIGHT + "px";
+    magnifier.style.left = (cursorPosX + canvasTranslateX) * devicePixelRatio + canvas.offsetLeft - (magnifier.width / 2) + "px";
+    var newCtx = magnifier.getContext("2d");
+    newCtx.fillStyle = CANVAS_BACKGROUND_COLOR;
+    newCtx.fillRect(0, 0, magnifier.width, magnifier.height);
+
+    var tempCanvas = document.createElement('canvas');
+    tempCanvas.height = imageData.height;
+    tempCanvas.width = imageData.width;
+    tempCanvas.getContext("2d").putImageData(imageData, 0, 0);
+
+    newCtx.scale(MAGNIFIER_SCALE, MAGNIFIER_SCALE);
+    newCtx.drawImage(tempCanvas, MAGNIFIER_INSET, MAGNIFIER_INSET);
+
+  }
+
+  function DrawScrollbar() {
+    if (!shouldDrawScrollbar)
+      return;
+    shouldDrawScrollbar = false;
+    clearTimeout(scrollbarTimer);
+    var canvas = document.getElementById("mainCanvas");
+    var ctx = canvas.getContext("2d");
+    ctx.strokeStyle = SCROLLBAR_LINE_COLOR;
+    drawLine(ctx, CANVAS_WIDTH - CANVAS_INSET, CANVAS_INSET, 0, CANVAS_HEIGHT - 2 * CANVAS_INSET);
+    var scrollRange = Math.abs(CANVAS_HEIGHT - LINE_HEIGHT * (numLines + 1));
+    var scrollbarWidth = 6;
+    var scrollbarHeight = CANVAS_HEIGHT * (CANVAS_HEIGHT / (LINE_HEIGHT * (numLines + 1)));
+    scrollbarHeight = Math.min(scrollbarHeight, CANVAS_HEIGHT - 2 * CANVAS_INSET);
+    var yPos = (CANVAS_HEIGHT - 2 * CANVAS_INSET - scrollbarHeight) * (Math.abs(canvasTranslateY) / scrollRange);
+    ctx.fillStyle = SCROLLBAR_BAR_COLOR;
+    ctx.fillRect(CANVAS_WIDTH - CANVAS_INSET - scrollbarWidth / 2, CANVAS_INSET + yPos, scrollbarWidth, scrollbarHeight);
+    scrollbarTimer = setTimeout(function() {
+      RedrawMainCanvas();
+    }, 1000);
+  }
+
+  function DrawMessageWidget() {
+    if (!shouldDrawMessageWidget || messageText == "")
+      return;
+    shouldDrawMessageWidget = false;
+    clearTimeout(messageWidgetTimer);
+    var canvas = document.getElementById("mainCanvas");
+    var ctx = canvas.getContext("2d");
+    var oldFont = ctx.font;
+    ctx.font = "bold 12pt Calibri";
+    var metrics = ctx.measureText(messageText);
+    var messageWidth = metrics.width;
+    var messagePadding = 5;
+    var messagePosX = (CANVAS_WIDTH - messageWidth - 2 * messagePadding) / 2;
+    ctx.fillStyle = MESSAGE_WIDGET_COLOR;
+    ctx.fillRect(messagePosX, CANVAS_INSET, messageWidth + 2 * messagePadding, LINE_HEIGHT + 2 * messagePadding);
+
+    ctx.fillStyle = MESSAGE_WIDGET_TEXT_COLOR;
+    ctx.fillText(messageText, messagePosX + messagePadding, CANVAS_INSET + messagePadding + LINE_HEIGHT);
+    ctx.font = oldFont;
+    messageWidgetTimer = setTimeout(function() {
+      RedrawMainCanvas();
+    }, 1000);
+  }
+
+  function BodyLoaded() {
+    var canvas = document.getElementById("mainCanvas");
+    var ctx = canvas.getContext("2d");
+
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
+    canvas.style.backgroundColor = CANVAS_BACKGROUND_COLOR;
+    ctx.font = "10pt Calibri";
+    // scale by devicePixelRatio.
+    devicePixelRatio = 1;
+    if (window.devicePixelRatio) {
+      devicePixelRatio = 2;
+      canvas.width = CANVAS_WIDTH * devicePixelRatio;
+      canvas.height = CANVAS_HEIGHT * devicePixelRatio;
+      ctx.save();
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+    }
+
+    RedrawMainCanvas(0, 0);
+  }
+
+  </SCRIPT>
+</HEAD>
+<BODY onload="BodyLoaded();">
+  <FONT face= "arial"><H1> Selection of a word using the New Technique </H1></FONT>
+  <br>
+  <br>
+  <br>
+  <br>
+  <br>
+  <canvas id="mainCanvas" width="0" height="300" style="border:1px solid #d3d3d3"
+      ontouchstart="ProcessTouchEvent(event, EventType.TOUCH_START);"
+      ontouchmove="ProcessTouchEvent(event, EventType.TOUCH_MOVE);"
+      ontouchend="ProcessTouchEvent(event, EventType.TOUCH_END);">
+    Canvas not supported.
+  </canvas>
+  <br>
+  LOG: <button type='button' onclick='clearLog();'>Clear</button>
+  <div id='log' style='font-size: 10px'>
+  </div>
+  <canvas id="magnifier" width="0" height="0" style="border:1px solid #d3d3d3; position:fixed; top:10; left:10;">
+  </canvas>
+
+  <DIV id="myDiv"><H3> </H3></DIV>
+<A href="Instructions_NT.html">
+  <IMG src="pictures/next.png" alt = "problem loading picture" width = "50" height = "50"/>
+</A>
+<button type="button" class = "start" onClick="StartTimer()"> </button>
+<button type="button" class = "stop" name = "T5E1" onClick='loadXMLDoc("T5E1")'> </button>
+<A href="NTExp2.html">
+  <IMG src="pictures/nextt.png" alt = "problem loading picture" width = "50" height = "50"/>
+</A>
+</BODY>
+</HTML>
+
+

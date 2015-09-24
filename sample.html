@@ -1,0 +1,24 @@
+<HTML>
+  <HEAD>
+  </HEAD>
+</HTML>
+
+<BODY onload="BodyLoaded();">
+  <br>
+  <br>
+  <br>
+  <br>
+  <br>
+  <canvas id="mainCanvas" width="0" height="150" style="border:1px solid #d3d3d3;"
+      ontouchstart="ProcessTouchEvent(event, EventType.TOUCH_START);"
+      ontouchmove="ProcessTouchEvent(event, EventType.TOUCH_MOVE);"
+      ontouchend="ProcessTouchEvent(event, EventType.TOUCH_END);">
+    Canvas not supported.
+  </canvas>
+  <br>
+  LOG: <button type='button' onclick='clearLog();'>Clear</button>
+  <div id='log' style='font-size: 10px'>
+  </div>
+  <canvas id="magnifier" width="0" height="0" style="border:1px solid #d3d3d3; position:fixed; top:10; left:10"
+</BODY>
+</HTML>

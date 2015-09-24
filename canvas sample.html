@@ -1,0 +1,34 @@
+<html>
+<head> 
+  <TITLE>Sample Canvas</TITLE>
+  <SCRIPT type="text/javascript">
+    function BodyLoaded(){
+      var canvas = document.getElementById("sampleCanvas");
+      var context = canvas.getContext("2d");
+      context.strokeRect(50,50,200,200);
+      context.font = 'italic 10pt sans-serif';
+      var text = "Hello World How are you. Hope I fit in the right place";
+      context.fillText('Hello World How are you. Hope I fit in the right place', 65, 65, 170);
+
+      wrapText(context,text,x,y,content_width, line height){
+	var currentLine="";
+        var wordsArray = text.split(" ");
+        for( var n=0; n<wordsArray.lenght; n++){
+	  if(currentLine.length < content_width){
+       	    currentLine=currentLine + wordsArray[n];
+
+    }
+  </SCRIPT>
+  
+  
+</head>
+<BODY onload ="BodyLoaded();">
+  <canvas id="sampleCanvas" width = "300" height = "300"
+    onmousedown = "ProcessMouseEvent(event, );"
+    onmouseup = "ProcessMouseEvent();"
+    onmousemove = "ProcessMouseEvent();">
+    Sorry canvas not loaded
+</canvas>
+</BODY>
+  
+</html>
